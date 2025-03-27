@@ -151,15 +151,20 @@
                 const reading = data[timestamp];
                 const formattedDateTime = formatDateTime(timestamp);
                 
-                // Update cards
-                document.getElementById('distance-value').textContent = reading.Distance ? `${reading.Distance.toFixed(2)} cm` : '--';
-                document.getElementById('object-detection').textContent = reading.ObjectDetected ? 
+              // Update cards
+                document.getElementById('distance-value').textContent = 
+                    reading.Distance ? `${reading.Distance.toFixed(2)} cm` : '--';
+
+                document.getElementById('object-detection').innerHTML = 
+                    reading.ObjectDetected ? 
                     '<span class="status status-active">Object Detected</span>' : 
                     '<span class="status status-inactive">No Object</span>';
-                document.getElementById('touch-sensor').textContent = reading.TouchDetected ? 
+
+                document.getElementById('touch-sensor').innerHTML = 
+                    reading.TouchDetected ? 
                     '<span class="status status-active">Emergency Pressed</span>' : 
                     '<span class="status status-inactive">Not Pressed</span>';
-                
+
                 // Create table HTML
                 let tableHTML = `
                     <table class="data-table">

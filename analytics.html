@@ -92,6 +92,14 @@
             width: 20px;
             text-align: center;
         }
+
+        /* Navigation Links */
+        .sidebar-menu li a {
+            color: white;
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+        }
         
         /* Main Content */
         .main-content {
@@ -327,11 +335,11 @@
             </div>
             <div class="sidebar-menu">
                 <ul>
-                    <li><i class="fas fa-tachometer-alt"></i> Dashboard</li>
-                    <li><i class="fas fa-history"></i> Previous Readings</li>
-                    <li class="active"><i class="fas fa-chart-line"></i> Analytics</li>
-                    <li><i class="fas fa-bell"></i> Notifications</li>
-                    <li><i class="fas fa-cog"></i> Settings</li>
+                    <li><a href="index.html"><i class="fas fa-tachometer-alt"></i> Dashboard</a></li>
+                    <li><a href="readings.html"><i class="fas fa-history"></i> Previous Readings</a></li>
+                    <li class="active"><a href="analytics.html"><i class="fas fa-chart-line"></i> Analytics</a></li>
+                    <li><a href="notifications.html"><i class="fas fa-bell"></i> Notifications</a></li>
+                    <li><a href="settings.html"><i class="fas fa-cog"></i> Settings</a></li>
                 </ul>
             </div>
         </div>
@@ -481,7 +489,7 @@
                              value === 'line' ? 'fa-chart-line' : 'fa-chart-bar';
             
             document.getElementById('chart-title').innerHTML = 
-                <i class="fas ${iconClass}"></i> Sensor Data ${text};
+                `<i class="fas ${iconClass}"></i> Sensor Data ${text}`;
         }
         
         // Function to select timespan
@@ -496,14 +504,14 @@
             const checkboxes = document.querySelectorAll('#category-options input[type="checkbox"]');
             const selected = Array.from(checkboxes).filter(cb => cb.checked);
             
-            document.getElementById('category-count').textContent = ${selected.length} selected;
+            document.getElementById('category-count').textContent = `${selected.length} selected`;
             
             if (selected.length === 0) {
                 document.getElementById('category-placeholder').textContent = 'Select metrics';
             } else if (selected.length === checkboxes.length) {
                 document.getElementById('category-placeholder').textContent = 'All metrics';
             } else {
-                document.getElementById('category-placeholder').textContent = ${selected.length} metrics selected;
+                document.getElementById('category-placeholder').textContent = `${selected.length} metrics selected`;
             }
         }
         
@@ -735,7 +743,7 @@
                                 label: function(context) {
                                     let label = context.dataset.label || '';
                                     if (label.includes('Detected')) {
-                                        return ${label}: ${context.parsed.y === 1 ? 'Yes' : 'No'};
+                                        return `${label}: ${context.parsed.y === 1 ? 'Yes' : 'No'}`;
                                     }
                                     if (label) {
                                         label += ': ';
@@ -836,6 +844,16 @@
             
             // Load initial data
             loadData();
+            
+            // Highlight current page in sidebar
+            const currentPage = window.location.pathname.split('/').pop() || 'analytics.html';
+            document.querySelectorAll('.sidebar-menu li').forEach(li => {
+                li.classList.remove('active');
+                const link = li.querySelector('a');
+                if (link && link.getAttribute('href') === currentPage) {
+                    li.classList.add('active');
+                }
+            });
         });
     </script>
 </body>
