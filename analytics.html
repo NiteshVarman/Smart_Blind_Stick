@@ -8,7 +8,6 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-database-compat.js"></script>
-    <!-- Add Chart.js with date adapter -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
     <style>
@@ -149,17 +148,6 @@
             color: var(--dark);
         }
         
-        .filter-select {
-            width: 100%;
-            padding: 10px;
-            border: 1px solid #ddd;
-            border-radius: 5px;
-            background-color: white;
-            cursor: pointer;
-            appearance: none;
-            padding-right: 30px;
-        }
-        
         .custom-dropdown {
             position: relative;
         }
@@ -248,23 +236,30 @@
             border-radius: 10px;
             padding: 20px;
             box-shadow: 0 0.15rem 1.75rem 0 rgba(58, 59, 69, 0.1);
-            height: 500px;
+            height: 400px;
+            display: flex;
+            flex-direction: column;
         }
         
         .chart-container h3 {
             color: var(--dark);
-            margin-bottom: 20px;
+            margin-bottom: 15px;
         }
         
-        #analyticsChart {
-            width: 100%;
-            height: 100%;
+        #chart-wrapper {
+            flex: 1;
+            position: relative;
+            min-height: 300px;
         }
         
         /* Loading and error states */
-        .loading {
+        .loading, .error-message, .no-data {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100%;
             text-align: center;
-            padding: 40px;
         }
         
         .loader {
@@ -284,14 +279,22 @@
         
         .error-message {
             color: var(--danger);
-            text-align: center;
             padding: 20px;
         }
         
+        .error-message i {
+            font-size: 2rem;
+            margin-bottom: 15px;
+        }
+        
         .no-data {
-            text-align: center;
-            padding: 40px;
             color: var(--secondary);
+            padding: 40px;
+        }
+        
+        .no-data i {
+            font-size: 2rem;
+            margin-bottom: 15px;
         }
         
         /* Responsive */
@@ -306,6 +309,11 @@
             
             .search-filters {
                 flex-direction: column;
+            }
+            
+            .chart-container {
+                height: auto;
+                min-height: 400px;
             }
         }
     </style>
@@ -342,11 +350,32 @@
                 <!-- Search Filters -->
                 <div class="search-filters">
                     <div class="filter-group">
+                        <label>Select Chart Type</label>
+                        <div class="custom-dropdown" id="chart-type-dropdown">
+                            <div class="dropdown-header" onclick="toggleDropdown('chart-type-dropdown')">
+                                <span id="chart-type-selected">Line Chart</span>
+                                <i class="fas fa-chevron-down dropdown-arrow"></i>
+                            </div>
+                            <div class="dropdown-options">
+                                <div class="dropdown-option" onclick="selectChartType('scatter', 'Scatter Plot')">
+                                    <i class="fas fa-chart-scatter"></i> Scatter Plot
+                                </div>
+                                <div class="dropdown-option" onclick="selectChartType('line', 'Line Chart')">
+                                    <i class="fas fa-chart-line"></i> Line Chart
+                                </div>
+                                <div class="dropdown-option" onclick="selectChartType('bar', 'Bar Graph')">
+                                    <i class="fas fa-chart-bar"></i> Bar Graph
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="filter-group">
                         <label>Select Metrics</label>
                         <div class="custom-dropdown" id="category-dropdown">
                             <div class="dropdown-header" onclick="toggleDropdown('category-dropdown')">
-                                <span id="category-placeholder">Select metrics</span>
-                                <span class="selected-count" id="category-count">0 selected</span>
+                                <span id="category-placeholder">All metrics</span>
+                                <span class="selected-count" id="category-count">3 selected</span>
                                 <i class="fas fa-chevron-down dropdown-arrow"></i>
                             </div>
                             <div class="dropdown-options" id="category-options">
@@ -355,11 +384,11 @@
                                     <label for="distance">Distance (cm)</label>
                                 </div>
                                 <div class="dropdown-option">
-                                    <input type="checkbox" id="object" value="ObjectDetected">
+                                    <input type="checkbox" id="object" value="ObjectDetected" checked>
                                     <label for="object">Object Detection</label>
                                 </div>
                                 <div class="dropdown-option">
-                                    <input type="checkbox" id="touch" value="TouchDetected">
+                                    <input type="checkbox" id="touch" value="TouchDetected" checked>
                                     <label for="touch">Touch Sensor</label>
                                 </div>
                             </div>
@@ -387,23 +416,25 @@
                         </div>
                     </div>
                     
-                    <button id="search-btn" class="search-btn" onclick="loadAndProcessData()">
+                    <button id="search-btn" class="search-btn" onclick="loadData()">
                         <i class="fas fa-search"></i> Search
                     </button>
                 </div>
                 
                 <!-- Chart Display -->
                 <div class="chart-container">
-                    <h3><i class="fas fa-chart-scatter"></i> Sensor Data Scatter Plot</h3>
+                    <h3 id="chart-title"><i class="fas fa-chart-line"></i> Sensor Data Line Chart</h3>
                     <div id="chart-wrapper">
-                        <canvas id="analyticsChart"></canvas>
+                        <div class="loading">
+                            <div class="loader"></div>
+                            <p>Loading data...</p>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
     </div>
 
-    
     <script>
         // Firebase configuration
         const firebaseConfig = {
@@ -421,12 +452,10 @@
         firebase.initializeApp(firebaseConfig);
         const database = firebase.database();
         
-        // Reference to your data
-        const blindStickRef = database.ref('BlindStick');
-        
         // Chart instance
         let analyticsChart = null;
         let selectedTimespan = '1week';
+        let selectedChartType = 'line';
         
         // Function to toggle dropdown
         function toggleDropdown(id) {
@@ -441,6 +470,20 @@
             });
         }
         
+        // Function to select chart type
+        function selectChartType(value, text) {
+            selectedChartType = value;
+            document.getElementById('chart-type-selected').textContent = text;
+            document.getElementById('chart-type-dropdown').classList.remove('dropdown-open');
+            
+            // Update chart title icon
+            const iconClass = value === 'scatter' ? 'fa-chart-scatter' : 
+                             value === 'line' ? 'fa-chart-line' : 'fa-chart-bar';
+            
+            document.getElementById('chart-title').innerHTML = 
+                <i class="fas ${iconClass}"></i> Sensor Data ${text};
+        }
+        
         // Function to select timespan
         function selectTimespan(value, text) {
             selectedTimespan = value;
@@ -453,14 +496,14 @@
             const checkboxes = document.querySelectorAll('#category-options input[type="checkbox"]');
             const selected = Array.from(checkboxes).filter(cb => cb.checked);
             
-            document.getElementById('category-count').textContent = `${selected.length} selected`;
+            document.getElementById('category-count').textContent = ${selected.length} selected;
             
             if (selected.length === 0) {
                 document.getElementById('category-placeholder').textContent = 'Select metrics';
             } else if (selected.length === checkboxes.length) {
                 document.getElementById('category-placeholder').textContent = 'All metrics';
             } else {
-                document.getElementById('category-placeholder').textContent = `${selected.length} metrics selected`;
+                document.getElementById('category-placeholder').textContent = ${selected.length} metrics selected;
             }
         }
         
@@ -470,107 +513,136 @@
             return Array.from(checkboxes).map(cb => cb.value);
         }
         
-        // Function to format the timestamp to readable date and time
-        function formatDateTime(timestamp) {
-            // Assuming timestamp is in format "2025-03-06_23-46-02"
-            const [datePart, timePart] = timestamp.split('_');
-            const [year, month, day] = datePart.split('-');
-            const [hour, minute, second] = timePart.split('-');
-            
-            const date = new Date(year, month - 1, day, hour, minute, second);
-            
-            return {
-                date: date.toLocaleDateString('en-US', {
-                    year: 'numeric',
-                    month: 'short',
-                    day: 'numeric'
-                }),
-                time: date.toLocaleTimeString('en-US', {
-                    hour: '2-digit',
-                    minute: '2-digit',
-                    second: '2-digit',
-                    hour12: true
-                }),
-                fullDateTime: date
-            };
+        // Function to convert timestamp string to Date object
+        function parseTimestamp(timestampStr) {
+            try {
+                const [datePart, timePart] = timestampStr.split('_');
+                const [year, month, day] = datePart.split('-');
+                const [hour, minute, second] = timePart.split('-');
+                
+                return new Date(year, month - 1, day, hour, minute, second);
+            } catch (e) {
+                console.error('Error parsing timestamp:', timestampStr, e);
+                return new Date(); // Return current date if parsing fails
+            }
         }
         
-        // Function to get date X days ago
-        function getDateDaysAgo(days) {
-            const date = new Date();
-            date.setDate(date.getDate() - days);
-            return date;
-        }
-        
-        // Function to filter data by time period
-        function filterDataByTimePeriod(data, period) {
+        // Function to filter data by timespan
+        function filterByTimespan(data, timespan) {
             const now = new Date();
-            let cutoffDate;
+            const daysBack = timespan === '1week' ? 7 : 
+                             timespan === '1month' ? 30 : 
+                             timespan === '6months' ? 180 : 7;
             
-            switch(period) {
-                case '1week':
-                    cutoffDate = getDateDaysAgo(7);
-                    break;
-                case '1month':
-                    cutoffDate = getDateDaysAgo(30);
-                    break;
-                case '6months':
-                    cutoffDate = getDateDaysAgo(180);
-                    break;
-                default:
-                    cutoffDate = getDateDaysAgo(7); // Default to 1 week
+            const cutoffDate = new Date(now.getTime() - (daysBack * 24 * 60 * 60 * 1000));
+            
+            const filteredData = [];
+            
+            for (const timestamp in data) {
+                if (data.hasOwnProperty(timestamp)) {
+                    const point = data[timestamp];
+                    const pointDate = parseTimestamp(timestamp);
+                    
+                    if (pointDate >= cutoffDate) {
+                        filteredData.push({
+                            timestamp: pointDate,
+                            distance: parseFloat(point.Distance) || 0,
+                            objectDetected: point.ObjectDetected === true,
+                            touchDetected: point.TouchDetected === true
+                        });
+                    }
+                }
             }
             
-            return Object.entries(data).filter(([timestamp]) => {
-                const formatted = formatDateTime(timestamp);
-                return formatted.fullDateTime >= cutoffDate;
-            });
+            // Sort by timestamp
+            return filteredData.sort((a, b) => a.timestamp - b.timestamp);
         }
         
         // Function to create or update chart
-        function updateChart(filteredData, selectedCategories) {
+        function updateChart(sensorData, selectedCategories) {
+            const chartWrapper = document.getElementById('chart-wrapper');
+            
+            // Clear previous chart if it exists
+            if (analyticsChart) {
+                analyticsChart.destroy();
+                analyticsChart = null;
+            }
+
+            // Clear the chart wrapper and show loading initially
+            chartWrapper.innerHTML = '<div class="loading"><div class="loader"></div><p>Processing data...</p></div>';
+
+            // Check if we have valid data
+            if (!sensorData || Object.keys(sensorData).length === 0) {
+                chartWrapper.innerHTML = `
+                    <div class="no-data">
+                        <i class="fas fa-database"></i>
+                        <p>No data available in Firebase</p>
+                    </div>
+                `;
+                return;
+            }
+
+            // Filter data by selected timespan
+            const filteredData = filterByTimespan(sensorData, selectedTimespan);
+            
+            if (filteredData.length === 0) {
+                chartWrapper.innerHTML = `
+                    <div class="no-data">
+                        <i class="fas fa-database"></i>
+                        <p>No data available in the selected time range</p>
+                    </div>
+                `;
+                return;
+            }
+
+            // Create new canvas element
+            chartWrapper.innerHTML = '<canvas id="analyticsChart"></canvas>';
             const ctx = document.getElementById('analyticsChart').getContext('2d');
             
-            // Prepare data for scatter plot
-            const distanceData = filteredData.map(([timestamp, record]) => ({
-                x: new Date(timestamp.replace(/_/g, '-').replace(/-/g, '/')),
-                y: parseFloat(record.Distance) || 0
-            }));
-            
-            // Prepare binary datasets
-            const objectData = filteredData.map(([timestamp, record]) => ({
-                x: new Date(timestamp.replace(/_/g, '-').replace(/-/g, '/')),
-                y: record.ObjectDetected ? 1 : 0
-            }));
-            
-            const touchData = filteredData.map(([timestamp, record]) => ({
-                x: new Date(timestamp.replace(/_/g, '-').replace(/-/g, '/')),
-                y: record.TouchDetected ? 1 : 0
-            }));
-            
+            // Proceed with chart creation only if we got the context
+            if (!ctx) {
+                chartWrapper.innerHTML = `
+                    <div class="error-message">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <p>Failed to initialize chart. Please refresh the page.</p>
+                    </div>
+                `;
+                return;
+            }
+
             const datasets = [];
             
             if (selectedCategories.includes('Distance')) {
                 datasets.push({
                     label: 'Distance (cm)',
-                    data: distanceData,
+                    data: filteredData.map(point => ({
+                        x: point.timestamp,
+                        y: point.distance
+                    })),
                     backgroundColor: '#4e73df',
                     borderColor: '#4e73df',
-                    type: 'scatter',
-                    pointRadius: 6,
-                    pointHoverRadius: 8
+                    pointRadius: selectedChartType === 'scatter' ? 6 : 0,
+                    pointHoverRadius: selectedChartType === 'scatter' ? 8 : 0,
+                    borderWidth: selectedChartType === 'bar' ? 0 : 2,
+                    fill: false,
+                    tension: 0.1
                 });
             }
             
             if (selectedCategories.includes('ObjectDetected')) {
                 datasets.push({
                     label: 'Object Detected',
-                    data: objectData,
+                    data: filteredData.map(point => ({
+                        x: point.timestamp,
+                        y: point.objectDetected ? 1 : 0
+                    })),
                     backgroundColor: '#1cc88a',
                     borderColor: '#1cc88a',
-                    type: 'scatter',
-                    pointRadius: 6,
-                    pointHoverRadius: 8,
+                    pointRadius: selectedChartType === 'scatter' ? 6 : 0,
+                    pointHoverRadius: selectedChartType === 'scatter' ? 8 : 0,
+                    borderWidth: selectedChartType === 'bar' ? 0 : 2,
+                    fill: false,
+                    tension: 0.1,
                     yAxisID: 'binaryAxis'
                 });
             }
@@ -578,27 +650,33 @@
             if (selectedCategories.includes('TouchDetected')) {
                 datasets.push({
                     label: 'Touch Detected',
-                    data: touchData,
+                    data: filteredData.map(point => ({
+                        x: point.timestamp,
+                        y: point.touchDetected ? 1 : 0
+                    })),
                     backgroundColor: '#f6c23e',
                     borderColor: '#f6c23e',
-                    type: 'scatter',
-                    pointRadius: 6,
-                    pointHoverRadius: 8,
+                    pointRadius: selectedChartType === 'scatter' ? 6 : 0,
+                    pointHoverRadius: selectedChartType === 'scatter' ? 8 : 0,
+                    borderWidth: selectedChartType === 'bar' ? 0 : 2,
+                    fill: false,
+                    tension: 0.1,
                     yAxisID: 'binaryAxis'
                 });
             }
-            
-            // Destroy existing chart if it exists
-            if (analyticsChart) {
-                analyticsChart.destroy();
+
+            // Adjust bar chart settings
+            if (selectedChartType === 'bar') {
+                datasets.forEach(dataset => {
+                    dataset.barPercentage = 0.6;
+                    dataset.categoryPercentage = 0.8;
+                });
             }
-            
-            // Create new chart with time scale
+
+            // Create the chart
             analyticsChart = new Chart(ctx, {
-                type: 'scatter',
-                data: {
-                    datasets: datasets
-                },
+                type: selectedChartType,
+                data: { datasets },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
@@ -606,14 +684,17 @@
                         x: {
                             type: 'time',
                             time: {
-                                parser: 'yyyy-MM-dd_HH-mm-ss',
                                 tooltipFormat: 'MMM d, yyyy h:mm a',
                                 unit: 'day'
                             },
                             title: {
                                 display: true,
                                 text: 'Date & Time'
-                            }
+                            },
+                            grid: {
+                                display: true
+                            },
+                            stacked: selectedChartType === 'bar'
                         },
                         y: {
                             title: {
@@ -621,7 +702,11 @@
                                 text: 'Distance (cm)'
                             },
                             beginAtZero: true,
-                            min: 0
+                            min: 0,
+                            grid: {
+                                display: true
+                            },
+                            stacked: selectedChartType === 'bar'
                         },
                         binaryAxis: {
                             position: 'right',
@@ -638,6 +723,9 @@
                                     if (value === 1) return 'Yes';
                                     return '';
                                 }
+                            },
+                            grid: {
+                                display: false
                             }
                         }
                     },
@@ -647,7 +735,7 @@
                                 label: function(context) {
                                     let label = context.dataset.label || '';
                                     if (label.includes('Detected')) {
-                                        return `${label}: ${context.parsed.y === 1 ? 'Yes' : 'No'}`;
+                                        return ${label}: ${context.parsed.y === 1 ? 'Yes' : 'No'};
                                     }
                                     if (label) {
                                         label += ': ';
@@ -663,15 +751,27 @@
                             }
                         },
                         legend: {
-                            position: 'top'
+                            position: 'top',
+                            labels: {
+                                boxWidth: 12,
+                                padding: 20
+                            }
+                        }
+                    },
+                    layout: {
+                        padding: {
+                            top: 10,
+                            right: 10,
+                            bottom: 10,
+                            left: 10
                         }
                     }
                 }
             });
         }
-
-        // Function to load and process data
-        function loadAndProcessData() {
+        
+        // Function to load data from Firebase
+        function loadData() {
             const selectedCategories = getSelectedCategories();
             
             if (selectedCategories.length === 0) {
@@ -681,61 +781,38 @@
             
             // Show loading state
             const chartWrapper = document.getElementById('chart-wrapper');
-            chartWrapper.innerHTML = `
-                <div class="loading">
-                    <div class="loader"></div>
-                    <p>Loading data and generating chart...</p>
-                </div>
-            `;
+            chartWrapper.innerHTML = '<div class="loading"><div class="loader"></div><p>Loading data...</p></div>';
             
-            blindStickRef.once('value', (snapshot) => {
-                const data = snapshot.val();
-                
-                if (!data) {
+            // Reference to your Firebase data path
+            const blindStickRef = database.ref('BlindStick');
+            
+            blindStickRef.once('value')
+                .then((snapshot) => {
+                    const data = snapshot.val();
+                    
+                    if (!data) {
+                        chartWrapper.innerHTML = `
+                            <div class="no-data">
+                                <i class="fas fa-database"></i>
+                                <p>No data available in Firebase</p>
+                            </div>
+                        `;
+                        return;
+                    }
+                    
+                    // Update chart with real data from Firebase
+                    updateChart(data, selectedCategories);
+                })
+                .catch((error) => {
+                    console.error('Error loading data:', error);
                     chartWrapper.innerHTML = `
-                        <div class="no-data">
-                            <i class="fas fa-exclamation-circle" style="font-size: 2rem; margin-bottom: 15px;"></i>
-                            <p>No data available</p>
+                        <div class="error-message">
+                            <i class="fas fa-exclamation-triangle"></i>
+                            <p>Error loading data. Please try again.</p>
+                            <p>${error.message || ''}</p>
                         </div>
                     `;
-                    return;
-                }
-                
-                // Filter data by selected time period
-                const filteredData = filterDataByTimePeriod(data, selectedTimespan);
-                
-                if (filteredData.length === 0) {
-                    chartWrapper.innerHTML = `
-                        <div class="no-data">
-                            <i class="fas fa-exclamation-circle" style="font-size: 2rem; margin-bottom: 15px;"></i>
-                            <p>No data available for the selected time period</p>
-                        </div>
-                    `;
-                    return;
-                }
-                
-                // Sort data by date (oldest first)
-                filteredData.sort(([timestampA], [timestampB]) => {
-                    const dateA = new Date(timestampA.replace(/_/g, ' '));
-                    const dateB = new Date(timestampB.replace(/_/g, ' '));
-                    return dateA - dateB;
                 });
-                
-                // Restore chart canvas
-                chartWrapper.innerHTML = '<canvas id="analyticsChart"></canvas>';
-                
-                // Update chart with filtered data
-                updateChart(filteredData, selectedCategories);
-                
-            }, (error) => {
-                console.error('Error loading data:', error);
-                chartWrapper.innerHTML = `
-                    <div class="error-message">
-                        <i class="fas fa-exclamation-triangle"></i>
-                        <p>Error loading data. Please try again.</p>
-                    </div>
-                `;
-            });
         }
         
         // Close dropdowns when clicking outside
@@ -757,18 +834,8 @@
             // Initialize category selection display
             updateCategorySelection();
             
-            // Navigation to dashboard
-            document.querySelector('.sidebar-menu li:nth-child(1)').addEventListener('click', () => {
-                window.location.href = 'index.html';
-            });
-            
-            // Navigation to previous readings
-            document.querySelector('.sidebar-menu li:nth-child(2)').addEventListener('click', () => {
-                window.location.href = 'readings.html';
-            });
-            
             // Load initial data
-            loadAndProcessData();
+            loadData();
         });
     </script>
 </body>
