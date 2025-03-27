@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Blind Stick - Previous Readings</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-database-compat.js"></script>
+    <style>
+        :root {
+            --primary: #4e73df;
+            --secondary: #858796;
+            --success: #1cc88a;
+            --info: #36b9cc;
+            --warning: #f6c23e;
+            --danger: #e74a3b;
+            --light: #f8f9fc;
+            --dark: #5a5c69;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Poppins', sans-serif;
+        }
+        
+        body {
+            background-color: #f8f9fc;
+            color: #333;
+        }
+        
+        .container {
+            display: grid;
+            grid-template-columns: 250px 1fr;
+            min-height: 100vh;
+        }
+        
+        /* Sidebar */
+        .sidebar {
+            background: linear-gradient(180deg, var(--primary) 0%, #224abe 100%);
+            color: white;
+            padding: 20px 0;
+            box-shadow: 0 0.15rem 1.75rem 0 rgba(58, 59, 69, 0.15);
+        }
+        
+        .sidebar-header {
+            padding: 0 20px 20px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+        }
+        
+        .sidebar-header h3 {
+            display: flex;
+            align-items: center;
+            font-size: 1.2rem;
+        }
+        
+        .sidebar-header h3 i {
+            margin-right: 10px;
+            font-size: 1.5rem;
+        }
+        
+        .sidebar-menu {
+            padding: 20px 0;
+        }
+        
+        .sidebar-menu ul {
+            list-style: none;
+        }
+        
+        .sidebar-menu li {
+            padding: 10px 20px;
+            transition: all 0.3s;
+            cursor: pointer;
+        }
+        
+        .sidebar-menu li:hover {
+            background-color: rgba(255, 255, 255, 0.1);
+        }
+        
+        .sidebar-menu li.active {
+            background-color: rgba(255, 255, 255, 0.2);
+            border-left: 4px solid white;
+        }
+        
+        .sidebar-menu li i {
+            margin-right: 10px;
+            width: 20px;
+            text-align: center;
+        }
+        
+        /* Main Content */
+        .main-content {
+            padding: 20px;
+        }
+        
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid #e3e6f0;
+        }
+        
+        .header h1 {
+            color: var(--dark);
+            font-size: 1.8rem;
+        }
+        
+        .user-info {
+            display: flex;
+            align-items: center;
+        }
+        
+        /* Analytics Layout */
+        .analytics-container {
+            display: grid;
+            grid-template-columns: 300px 1fr;
+            gap: 20px;
+        }
+        
+        .dates-list {
+            background: white;
+            border-radius: 10px;
+            padding: 15px;
+            box-shadow: 0 0.15rem 1.75rem 0 rgba(58, 59, 69, 0.1);
+            max-height: 80vh;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .dates-list h3 {
+            color: var(--dark);
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #e3e6f0;
+        }
+        
+        .date-items-container {
+            flex: 1;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column-reverse;
+        }
+        
+        .date-item {
+            padding: 10px;
+            margin-bottom: 5px;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .date-item:hover {
+            background-color: var(--light);
+        }
+        
+        .date-item.active {
+            background-color: rgba(78, 115, 223, 0.1);
+            border-left: 3px solid var(--primary);
+        }
+        
+        .data-display {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 0.15rem 1.75rem 0 rgba(58, 59, 69, 0.1);
+        }
+        
+        .data-display h3 {
+            color: var(--dark);
+            margin-bottom: 20px;
+        }
+        
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        .data-table th, .data-table td {
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 1px solid #e3e6f0;
+        }
+        
+        .data-table th {
+            background-color: var(--light);
+            color: var(--dark);
+            font-weight: 600;
+        }
+        
+        .data-table tr:hover {
+            background-color: rgba(78, 115, 223, 0.05);
+        }
+        
+        /* Status indicators */
+        .status {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-weight: 500;
+        }
+        
+        .status-active {
+            background-color: rgba(28, 200, 138, 0.1);
+            color: var(--success);
+        }
+        
+        .status-inactive {
+            background-color: rgba(231, 74, 59, 0.1);
+            color: var(--danger);
+        }
+        
+        /* Loading and error states */
+        .loading {
+            text-align: center;
+            padding: 40px;
+        }
+        
+        .loader {
+            border: 5px solid #f3f3f3;
+            border-top: 5px solid var(--primary);
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .error-message {
+            color: var(--danger);
+            text-align: center;
+            padding: 20px;
+        }
+        
+        .no-data {
+            text-align: center;
+            padding: 40px;
+            color: var(--secondary);
+        }
+        
+        /* Responsive */
+        @media (max-width: 992px) {
+            .container {
+                grid-template-columns: 1fr;
+            }
+            
+            .sidebar {
+                display: none;
+            }
+            
+            .analytics-container {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Sidebar -->
+        <div class="sidebar">
+            <div class="sidebar-header">
+                <h3><i class="fas fa-blind"></i> Smart Blind Stick</h3>
+            </div>
+            <div class="sidebar-menu">
+                <ul>
+                    <li><i class="fas fa-tachometer-alt"></i> Dashboard</li>
+                    <li class="active"><i class="fas fa-history"></i> Previous Readings</li>
+                    <li><i class="fas fa-chart-line"></i> Analytics</li>
+                    <li><i class="fas fa-bell"></i> Notifications</li>
+                    <li><i class="fas fa-cog"></i> Settings</li>
+                </ul>
+            </div>
+        </div>
+        
+        <!-- Main Content -->
+        <div class="main-content">
+            <div class="header">
+                <h1>Previous Readings</h1>
+                <div class="user-info">
+                    <span>User</span>
+                </div>
+            </div>
+            
+            <div class="analytics-container">
+                <!-- Dates List -->
+                <div class="dates-list">
+                    <h3>Available Dates</h3>
+                    <div id="dates-container">
+                        <div class="date-items-container">
+                            <div class="loading">
+                                <div class="loader"></div>
+                                <p>Loading dates...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Data Display -->
+                <div class="data-display">
+                    <h3>Sensor Data</h3>
+                    <div id="data-container">
+                        <div class="no-data">
+                            <i class="fas fa-database" style="font-size: 2rem; margin-bottom: 15px;"></i>
+                            <p>Select a date to view sensor data</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Firebase configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyCU7Zz-s0jGn1OX0r5xYOt7WKHUbgcjdLI",
+            authDomain: "smart-blind-stick-70181.firebaseapp.com",
+            databaseURL: "https://smart-blind-stick-70181-default-rtdb.firebaseio.com",
+            projectId: "smart-blind-stick-70181",
+            storageBucket: "smart-blind-stick-70181.appspot.com",
+            messagingSenderId: "509036486006",
+            appId: "1:509036486006:web:80ab6bcae7987610dd2e57",
+            measurementId: "G-7KLTB71FE2"
+        };
+
+        // Initialize Firebase
+        firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
+        
+        // Reference to your data
+        const blindStickRef = database.ref('BlindStick');
+        
+        // Function to format the timestamp to readable date and time
+        function formatDateTime(timestamp) {
+            // Assuming timestamp is in format "2025-03-06_23-46-02"
+            const [datePart, timePart] = timestamp.split('_');
+            const [year, month, day] = datePart.split('-');
+            const [hour, minute, second] = timePart.split('-');
+            
+            const date = new Date(year, month - 1, day, hour, minute, second);
+            
+            return {
+                date: date.toLocaleDateString('en-US', {
+                    year: 'numeric',
+                    month: 'short',
+                    day: 'numeric'
+                }),
+                time: date.toLocaleTimeString('en-US', {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit',
+                    hour12: true
+                })
+            };
+        }
+        
+        // Function to load all available dates
+        function loadDates() {
+            blindStickRef.once('value', (snapshot) => {
+                const data = snapshot.val();
+                const dateItemsContainer = document.querySelector('.date-items-container');
+                
+                if (!data) {
+                    dateItemsContainer.innerHTML = '<div class="no-data">No data available</div>';
+                    return;
+                }
+                
+                // Get all timestamps and sort them (newest first)
+                const timestamps = Object.keys(data).sort((a, b) => {
+                    const dateA = new Date(a.replace(/_/g, '-').replace(/-/g, ' '));
+                    const dateB = new Date(b.replace(/_/g, '-').replace(/-/g, ' '));
+                    return dateB - dateA;
+                });
+                
+                if (timestamps.length === 0) {
+                    dateItemsContainer.innerHTML = '<div class="no-data">No readings found</div>';
+                    return;
+                }
+                
+                // Clear loading message
+                dateItemsContainer.innerHTML = '';
+                
+                // Create date items
+                timestamps.forEach(timestamp => {
+                    const formattedDate = formatDateTime(timestamp).date;
+                    const dateItem = document.createElement('div');
+                    dateItem.className = 'date-item';
+                    dateItem.textContent = formattedDate;
+                    dateItem.dataset.timestamp = timestamp;
+                    
+                    dateItem.addEventListener('click', () => {
+                        // Remove active class from all items
+                        document.querySelectorAll('.date-item').forEach(item => {
+                            item.classList.remove('active');
+                        });
+                        
+                        // Add active class to clicked item
+                        dateItem.classList.add('active');
+                        
+                        // Load data for this timestamp
+                        loadReadingData(timestamp);
+                    });
+                    
+                    dateItemsContainer.appendChild(dateItem);
+                });
+                
+                // Load data for the first timestamp by default
+                if (timestamps.length > 0) {
+                    const firstDateItem = dateItemsContainer.firstElementChild;
+                    firstDateItem.classList.add('active');
+                    loadReadingData(timestamps[0]);
+                }
+                
+            }, (error) => {
+                console.error('Error loading dates:', error);
+                document.querySelector('.date-items-container').innerHTML = 
+                    '<div class="error-message">Error loading dates. Please refresh the page.</div>';
+            });
+        }
+        
+        // Function to load data for a specific reading
+        function loadReadingData(timestamp) {
+            const dataContainer = document.getElementById('data-container');
+            dataContainer.innerHTML = `
+                <div class="loading">
+                    <div class="loader"></div>
+                    <p>Loading data...</p>
+                </div>
+            `;
+            
+            blindStickRef.child(timestamp).once('value', (snapshot) => {
+                const reading = snapshot.val();
+                const formattedDateTime = formatDateTime(timestamp);
+                
+                if (!reading) {
+                    dataContainer.innerHTML = `
+                        <div class="no-data">
+                            <i class="fas fa-exclamation-circle" style="font-size: 2rem; margin-bottom: 15px;"></i>
+                            <p>No data available for this reading</p>
+                        </div>
+                    `;
+                    return;
+                }
+                
+                // Create table HTML
+                let tableHTML = `
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Metric</th>
+                                <th>Value</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Date</td>
+                                <td>${formattedDateTime.date}</td>
+                            </tr>
+                            <tr>
+                                <td>Time</td>
+                                <td>${formattedDateTime.time}</td>
+                            </tr>
+                            <tr>
+                                <td>Distance</td>
+                                <td>${reading.Distance ? reading.Distance.toFixed(2) + ' cm' : 'N/A'}</td>
+                            </tr>
+                            <tr>
+                                <td>Object Detection</td>
+                                <td>${reading.ObjectDetected ? 
+                                    '<span class="status status-active">Object Detected</span>' : 
+                                    '<span class="status status-inactive">No Object</span>'}</td>
+                            </tr>
+                            <tr>
+                                <td>Touch Sensor</td>
+                                <td>${reading.TouchDetected ? 
+                                    '<span class="status status-active">Emergency Pressed</span>' : 
+                                    '<span class="status status-inactive">Not Pressed</span>'}</td>
+                            </tr>
+                            <tr>
+                                <td>Location</td>
+                                <td>${reading.Location || 'Location Not Available'}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                `;
+                
+                dataContainer.innerHTML = tableHTML;
+                
+            }, (error) => {
+                console.error('Error loading reading data:', error);
+                dataContainer.innerHTML = `
+                    <div class="error-message">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <p>Error loading data. Please try again.</p>
+                    </div>
+                `;
+            });
+        }
+        
+        // Initialize the page when loaded
+        window.addEventListener('load', () => {
+            // Load all available dates
+            loadDates();
+            
+            // Navigation to dashboard
+            document.querySelector('.sidebar-menu li:nth-child(1)').addEventListener('click', () => {
+                window.location.href = 'iot.html';
+            });
+            
+            // Navigation to analytics
+            document.querySelector('.sidebar-menu li:nth-child(3)').addEventListener('click', () => {
+                window.location.href = 'analytics.html';
+            });
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,775 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Blind Stick Analytics</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-database-compat.js"></script>
+    <!-- Add Chart.js with date adapter -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+    <style>
+        :root {
+            --primary: #4e73df;
+            --secondary: #858796;
+            --success: #1cc88a;
+            --info: #36b9cc;
+            --warning: #f6c23e;
+            --danger: #e74a3b;
+            --light: #f8f9fc;
+            --dark: #5a5c69;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Poppins', sans-serif;
+        }
+        
+        body {
+            background-color: #f8f9fc;
+            color: #333;
+        }
+        
+        .container {
+            display: grid;
+            grid-template-columns: 250px 1fr;
+            min-height: 100vh;
+        }
+        
+        /* Sidebar */
+        .sidebar {
+            background: linear-gradient(180deg, var(--primary) 0%, #224abe 100%);
+            color: white;
+            padding: 20px 0;
+            box-shadow: 0 0.15rem 1.75rem 0 rgba(58, 59, 69, 0.15);
+        }
+        
+        .sidebar-header {
+            padding: 0 20px 20px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+        }
+        
+        .sidebar-header h3 {
+            display: flex;
+            align-items: center;
+            font-size: 1.2rem;
+        }
+        
+        .sidebar-header h3 i {
+            margin-right: 10px;
+            font-size: 1.5rem;
+        }
+        
+        .sidebar-menu {
+            padding: 20px 0;
+        }
+        
+        .sidebar-menu ul {
+            list-style: none;
+        }
+        
+        .sidebar-menu li {
+            padding: 10px 20px;
+            transition: all 0.3s;
+            cursor: pointer;
+        }
+        
+        .sidebar-menu li:hover {
+            background-color: rgba(255, 255, 255, 0.1);
+        }
+        
+        .sidebar-menu li.active {
+            background-color: rgba(255, 255, 255, 0.2);
+            border-left: 4px solid white;
+        }
+        
+        .sidebar-menu li i {
+            margin-right: 10px;
+            width: 20px;
+            text-align: center;
+        }
+        
+        /* Main Content */
+        .main-content {
+            padding: 20px;
+        }
+        
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid #e3e6f0;
+        }
+        
+        .header h1 {
+            color: var(--dark);
+            font-size: 1.8rem;
+        }
+        
+        .user-info {
+            display: flex;
+            align-items: center;
+        }
+        
+        /* Analytics Layout */
+        .analytics-container {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 20px;
+        }
+        
+        /* Search Filters */
+        .search-filters {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+            background: white;
+            padding: 15px;
+            border-radius: 10px;
+            box-shadow: 0 0.15rem 1.75rem 0 rgba(58, 59, 69, 0.1);
+            align-items: center;
+        }
+        
+        .filter-group {
+            position: relative;
+            flex: 1;
+        }
+        
+        .filter-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+            color: var(--dark);
+        }
+        
+        .filter-select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            background-color: white;
+            cursor: pointer;
+            appearance: none;
+            padding-right: 30px;
+        }
+        
+        .custom-dropdown {
+            position: relative;
+        }
+        
+        .dropdown-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            cursor: pointer;
+            background-color: white;
+        }
+        
+        .dropdown-options {
+            display: none;
+            position: absolute;
+            top: 100%;
+            left: 0;
+            width: 100%;
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            z-index: 100;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        
+        .dropdown-option {
+            padding: 10px;
+            display: flex;
+            align-items: center;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        
+        .dropdown-option:hover {
+            background-color: #f5f5f5;
+        }
+        
+        .dropdown-option input {
+            margin-right: 10px;
+        }
+        
+        .dropdown-arrow {
+            transition: transform 0.2s;
+        }
+        
+        .dropdown-open .dropdown-arrow {
+            transform: rotate(180deg);
+        }
+        
+        .dropdown-open .dropdown-options {
+            display: block;
+        }
+        
+        .selected-count {
+            font-size: 0.8rem;
+            color: var(--secondary);
+            margin-left: 5px;
+        }
+        
+        .search-btn {
+            padding: 10px 20px;
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+            align-self: flex-end;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .search-btn:hover {
+            background-color: #3a5bc7;
+        }
+        
+        /* Chart Container */
+        .chart-container {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 0.15rem 1.75rem 0 rgba(58, 59, 69, 0.1);
+            height: 500px;
+        }
+        
+        .chart-container h3 {
+            color: var(--dark);
+            margin-bottom: 20px;
+        }
+        
+        #analyticsChart {
+            width: 100%;
+            height: 100%;
+        }
+        
+        /* Loading and error states */
+        .loading {
+            text-align: center;
+            padding: 40px;
+        }
+        
+        .loader {
+            border: 5px solid #f3f3f3;
+            border-top: 5px solid var(--primary);
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .error-message {
+            color: var(--danger);
+            text-align: center;
+            padding: 20px;
+        }
+        
+        .no-data {
+            text-align: center;
+            padding: 40px;
+            color: var(--secondary);
+        }
+        
+        /* Responsive */
+        @media (max-width: 992px) {
+            .container {
+                grid-template-columns: 1fr;
+            }
+            
+            .sidebar {
+                display: none;
+            }
+            
+            .search-filters {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Sidebar -->
+        <div class="sidebar">
+            <div class="sidebar-header">
+                <h3><i class="fas fa-blind"></i> Smart Blind Stick</h3>
+            </div>
+            <div class="sidebar-menu">
+                <ul>
+                    <li><i class="fas fa-tachometer-alt"></i> Dashboard</li>
+                    <li><i class="fas fa-history"></i> Previous Readings</li>
+                    <li class="active"><i class="fas fa-chart-line"></i> Analytics</li>
+                    <li><i class="fas fa-bell"></i> Notifications</li>
+                    <li><i class="fas fa-cog"></i> Settings</li>
+                </ul>
+            </div>
+        </div>
+        
+        <!-- Main Content -->
+        <div class="main-content">
+            <div class="header">
+                <h1><i class="fas fa-chart-line"></i> Analytics</h1>
+                <div class="user-info">
+                    <span>User</span>
+                    <i class="fas fa-user-circle" style="margin-left: 10px; font-size: 1.2rem;"></i>
+                </div>
+            </div>
+            
+            <div class="analytics-container">
+                <!-- Search Filters -->
+                <div class="search-filters">
+                    <div class="filter-group">
+                        <label>Select Metrics</label>
+                        <div class="custom-dropdown" id="category-dropdown">
+                            <div class="dropdown-header" onclick="toggleDropdown('category-dropdown')">
+                                <span id="category-placeholder">Select metrics</span>
+                                <span class="selected-count" id="category-count">0 selected</span>
+                                <i class="fas fa-chevron-down dropdown-arrow"></i>
+                            </div>
+                            <div class="dropdown-options" id="category-options">
+                                <div class="dropdown-option">
+                                    <input type="checkbox" id="distance" value="Distance" checked>
+                                    <label for="distance">Distance (cm)</label>
+                                </div>
+                                <div class="dropdown-option">
+                                    <input type="checkbox" id="object" value="ObjectDetected">
+                                    <label for="object">Object Detection</label>
+                                </div>
+                                <div class="dropdown-option">
+                                    <input type="checkbox" id="touch" value="TouchDetected">
+                                    <label for="touch">Touch Sensor</label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="filter-group">
+                        <label>Select Timespan</label>
+                        <div class="custom-dropdown" id="timespan-dropdown">
+                            <div class="dropdown-header" onclick="toggleDropdown('timespan-dropdown')">
+                                <span id="timespan-selected">Last 1 Week</span>
+                                <i class="fas fa-chevron-down dropdown-arrow"></i>
+                            </div>
+                            <div class="dropdown-options">
+                                <div class="dropdown-option" onclick="selectTimespan('1week', 'Last 1 Week')">
+                                    Last 1 Week
+                                </div>
+                                <div class="dropdown-option" onclick="selectTimespan('1month', 'Last 1 Month')">
+                                    Last 1 Month
+                                </div>
+                                <div class="dropdown-option" onclick="selectTimespan('6months', 'Last 6 Months')">
+                                    Last 6 Months
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <button id="search-btn" class="search-btn" onclick="loadAndProcessData()">
+                        <i class="fas fa-search"></i> Search
+                    </button>
+                </div>
+                
+                <!-- Chart Display -->
+                <div class="chart-container">
+                    <h3><i class="fas fa-chart-scatter"></i> Sensor Data Scatter Plot</h3>
+                    <div id="chart-wrapper">
+                        <canvas id="analyticsChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    
+    <script>
+        // Firebase configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyCU7Zz-s0jGn1OX0r5xYOt7WKHUbgcjdLI",
+            authDomain: "smart-blind-stick-70181.firebaseapp.com",
+            databaseURL: "https://smart-blind-stick-70181-default-rtdb.firebaseio.com",
+            projectId: "smart-blind-stick-70181",
+            storageBucket: "smart-blind-stick-70181.appspot.com",
+            messagingSenderId: "509036486006",
+            appId: "1:509036486006:web:80ab6bcae7987610dd2e57",
+            measurementId: "G-7KLTB71FE2"
+        };
+
+        // Initialize Firebase
+        firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
+        
+        // Reference to your data
+        const blindStickRef = database.ref('BlindStick');
+        
+        // Chart instance
+        let analyticsChart = null;
+        let selectedTimespan = '1week';
+        
+        // Function to toggle dropdown
+        function toggleDropdown(id) {
+            const dropdown = document.getElementById(id);
+            dropdown.classList.toggle('dropdown-open');
+            
+            // Close other dropdowns
+            document.querySelectorAll('.custom-dropdown').forEach(dd => {
+                if (dd.id !== id) {
+                    dd.classList.remove('dropdown-open');
+                }
+            });
+        }
+        
+        // Function to select timespan
+        function selectTimespan(value, text) {
+            selectedTimespan = value;
+            document.getElementById('timespan-selected').textContent = text;
+            document.getElementById('timespan-dropdown').classList.remove('dropdown-open');
+        }
+        
+        // Function to update selected categories count and display
+        function updateCategorySelection() {
+            const checkboxes = document.querySelectorAll('#category-options input[type="checkbox"]');
+            const selected = Array.from(checkboxes).filter(cb => cb.checked);
+            
+            document.getElementById('category-count').textContent = `${selected.length} selected`;
+            
+            if (selected.length === 0) {
+                document.getElementById('category-placeholder').textContent = 'Select metrics';
+            } else if (selected.length === checkboxes.length) {
+                document.getElementById('category-placeholder').textContent = 'All metrics';
+            } else {
+                document.getElementById('category-placeholder').textContent = `${selected.length} metrics selected`;
+            }
+        }
+        
+        // Function to get selected categories
+        function getSelectedCategories() {
+            const checkboxes = document.querySelectorAll('#category-options input[type="checkbox"]:checked');
+            return Array.from(checkboxes).map(cb => cb.value);
+        }
+        
+        // Function to format the timestamp to readable date and time
+        function formatDateTime(timestamp) {
+            // Assuming timestamp is in format "2025-03-06_23-46-02"
+            const [datePart, timePart] = timestamp.split('_');
+            const [year, month, day] = datePart.split('-');
+            const [hour, minute, second] = timePart.split('-');
+            
+            const date = new Date(year, month - 1, day, hour, minute, second);
+            
+            return {
+                date: date.toLocaleDateString('en-US', {
+                    year: 'numeric',
+                    month: 'short',
+                    day: 'numeric'
+                }),
+                time: date.toLocaleTimeString('en-US', {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit',
+                    hour12: true
+                }),
+                fullDateTime: date
+            };
+        }
+        
+        // Function to get date X days ago
+        function getDateDaysAgo(days) {
+            const date = new Date();
+            date.setDate(date.getDate() - days);
+            return date;
+        }
+        
+        // Function to filter data by time period
+        function filterDataByTimePeriod(data, period) {
+            const now = new Date();
+            let cutoffDate;
+            
+            switch(period) {
+                case '1week':
+                    cutoffDate = getDateDaysAgo(7);
+                    break;
+                case '1month':
+                    cutoffDate = getDateDaysAgo(30);
+                    break;
+                case '6months':
+                    cutoffDate = getDateDaysAgo(180);
+                    break;
+                default:
+                    cutoffDate = getDateDaysAgo(7); // Default to 1 week
+            }
+            
+            return Object.entries(data).filter(([timestamp]) => {
+                const formatted = formatDateTime(timestamp);
+                return formatted.fullDateTime >= cutoffDate;
+            });
+        }
+        
+        // Function to create or update chart
+        function updateChart(filteredData, selectedCategories) {
+            const ctx = document.getElementById('analyticsChart').getContext('2d');
+            
+            // Prepare data for scatter plot
+            const distanceData = filteredData.map(([timestamp, record]) => ({
+                x: new Date(timestamp.replace(/_/g, '-').replace(/-/g, '/')),
+                y: parseFloat(record.Distance) || 0
+            }));
+            
+            // Prepare binary datasets
+            const objectData = filteredData.map(([timestamp, record]) => ({
+                x: new Date(timestamp.replace(/_/g, '-').replace(/-/g, '/')),
+                y: record.ObjectDetected ? 1 : 0
+            }));
+            
+            const touchData = filteredData.map(([timestamp, record]) => ({
+                x: new Date(timestamp.replace(/_/g, '-').replace(/-/g, '/')),
+                y: record.TouchDetected ? 1 : 0
+            }));
+            
+            const datasets = [];
+            
+            if (selectedCategories.includes('Distance')) {
+                datasets.push({
+                    label: 'Distance (cm)',
+                    data: distanceData,
+                    backgroundColor: '#4e73df',
+                    borderColor: '#4e73df',
+                    type: 'scatter',
+                    pointRadius: 6,
+                    pointHoverRadius: 8
+                });
+            }
+            
+            if (selectedCategories.includes('ObjectDetected')) {
+                datasets.push({
+                    label: 'Object Detected',
+                    data: objectData,
+                    backgroundColor: '#1cc88a',
+                    borderColor: '#1cc88a',
+                    type: 'scatter',
+                    pointRadius: 6,
+                    pointHoverRadius: 8,
+                    yAxisID: 'binaryAxis'
+                });
+            }
+            
+            if (selectedCategories.includes('TouchDetected')) {
+                datasets.push({
+                    label: 'Touch Detected',
+                    data: touchData,
+                    backgroundColor: '#f6c23e',
+                    borderColor: '#f6c23e',
+                    type: 'scatter',
+                    pointRadius: 6,
+                    pointHoverRadius: 8,
+                    yAxisID: 'binaryAxis'
+                });
+            }
+            
+            // Destroy existing chart if it exists
+            if (analyticsChart) {
+                analyticsChart.destroy();
+            }
+            
+            // Create new chart with time scale
+            analyticsChart = new Chart(ctx, {
+                type: 'scatter',
+                data: {
+                    datasets: datasets
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: {
+                            type: 'time',
+                            time: {
+                                parser: 'yyyy-MM-dd_HH-mm-ss',
+                                tooltipFormat: 'MMM d, yyyy h:mm a',
+                                unit: 'day'
+                            },
+                            title: {
+                                display: true,
+                                text: 'Date & Time'
+                            }
+                        },
+                        y: {
+                            title: {
+                                display: true,
+                                text: 'Distance (cm)'
+                            },
+                            beginAtZero: true,
+                            min: 0
+                        },
+                        binaryAxis: {
+                            position: 'right',
+                            title: {
+                                display: true,
+                                text: 'Sensor State'
+                            },
+                            min: -0.5,
+                            max: 1.5,
+                            ticks: {
+                                stepSize: 1,
+                                callback: function(value) {
+                                    if (value === 0) return 'No';
+                                    if (value === 1) return 'Yes';
+                                    return '';
+                                }
+                            }
+                        }
+                    },
+                    plugins: {
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    let label = context.dataset.label || '';
+                                    if (label.includes('Detected')) {
+                                        return `${label}: ${context.parsed.y === 1 ? 'Yes' : 'No'}`;
+                                    }
+                                    if (label) {
+                                        label += ': ';
+                                    }
+                                    if (context.parsed.y !== null) {
+                                        label += context.parsed.y.toFixed(2);
+                                        if (label.includes('Distance')) {
+                                            label += ' cm';
+                                        }
+                                    }
+                                    return label;
+                                }
+                            }
+                        },
+                        legend: {
+                            position: 'top'
+                        }
+                    }
+                }
+            });
+        }
+
+        // Function to load and process data
+        function loadAndProcessData() {
+            const selectedCategories = getSelectedCategories();
+            
+            if (selectedCategories.length === 0) {
+                alert('Please select at least one metric');
+                return;
+            }
+            
+            // Show loading state
+            const chartWrapper = document.getElementById('chart-wrapper');
+            chartWrapper.innerHTML = `
+                <div class="loading">
+                    <div class="loader"></div>
+                    <p>Loading data and generating chart...</p>
+                </div>
+            `;
+            
+            blindStickRef.once('value', (snapshot) => {
+                const data = snapshot.val();
+                
+                if (!data) {
+                    chartWrapper.innerHTML = `
+                        <div class="no-data">
+                            <i class="fas fa-exclamation-circle" style="font-size: 2rem; margin-bottom: 15px;"></i>
+                            <p>No data available</p>
+                        </div>
+                    `;
+                    return;
+                }
+                
+                // Filter data by selected time period
+                const filteredData = filterDataByTimePeriod(data, selectedTimespan);
+                
+                if (filteredData.length === 0) {
+                    chartWrapper.innerHTML = `
+                        <div class="no-data">
+                            <i class="fas fa-exclamation-circle" style="font-size: 2rem; margin-bottom: 15px;"></i>
+                            <p>No data available for the selected time period</p>
+                        </div>
+                    `;
+                    return;
+                }
+                
+                // Sort data by date (oldest first)
+                filteredData.sort(([timestampA], [timestampB]) => {
+                    const dateA = new Date(timestampA.replace(/_/g, ' '));
+                    const dateB = new Date(timestampB.replace(/_/g, ' '));
+                    return dateA - dateB;
+                });
+                
+                // Restore chart canvas
+                chartWrapper.innerHTML = '<canvas id="analyticsChart"></canvas>';
+                
+                // Update chart with filtered data
+                updateChart(filteredData, selectedCategories);
+                
+            }, (error) => {
+                console.error('Error loading data:', error);
+                chartWrapper.innerHTML = `
+                    <div class="error-message">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <p>Error loading data. Please try again.</p>
+                    </div>
+                `;
+            });
+        }
+        
+        // Close dropdowns when clicking outside
+        document.addEventListener('click', function(event) {
+            if (!event.target.closest('.custom-dropdown')) {
+                document.querySelectorAll('.custom-dropdown').forEach(dd => {
+                    dd.classList.remove('dropdown-open');
+                });
+            }
+        });
+        
+        // Initialize the page when loaded
+        window.addEventListener('load', () => {
+            // Set up event listeners for category checkboxes
+            document.querySelectorAll('#category-options input[type="checkbox"]').forEach(checkbox => {
+                checkbox.addEventListener('change', updateCategorySelection);
+            });
+            
+            // Initialize category selection display
+            updateCategorySelection();
+            
+            // Navigation to dashboard
+            document.querySelector('.sidebar-menu li:nth-child(1)').addEventListener('click', () => {
+                window.location.href = 'index.html';
+            });
+            
+            // Navigation to previous readings
+            document.querySelector('.sidebar-menu li:nth-child(2)').addEventListener('click', () => {
+                window.location.href = 'readings.html';
+            });
+            
+            // Load initial data
+            loadAndProcessData();
+        });
+    </script>
+</body>
+</html>
